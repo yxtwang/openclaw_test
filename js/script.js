@@ -8,6 +8,10 @@
   const submitBtn = document.getElementById('submitBtn');
   const remember = document.getElementById('remember');
 
+  // API 配置：如果需要请求外部后端，可在这里修改为完整的 base URL（例如 https://api.example.com）
+  const API_BASE = '';
+  const LOGIN_URL = (API_BASE ? API_BASE.replace(/\/$/, '') : '') + '/api/auth/login';
+
   // load saved email
   if(localStorage.getItem('rememberedEmail')){
     emailEl.value = localStorage.getItem('rememberedEmail');
@@ -40,7 +44,7 @@
     return '';
   }
 
-  form.addEventListener('submit', (e)=>{
+  form.addEventListener('submit', async (e)=>{
     e.preventDefault();
     submitBtn.disabled = true;
     const email = emailEl.value.trim();
@@ -49,19 +53,30 @@
     const v = validate(email, pwd);
     if(v){ showError(v); submitBtn.disabled = false; return; }
 
-    // simulate authentication
     showSuccess('正在登录……');
-    setTimeout(()=>{
-      // demo: accept only a fixed credential
-      if(email === 'user@example.com' && pwd === 'password123'){
+
+    try{
+      const res = await fetch(LOGIN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pwd, remember: remember.checked })
+      });
+
+      const data = await res.json().catch(()=>({}));
+
+      if(res.ok){
+        // 根据后端返回保存 token 或者使用 cookie（推荐在生产使用 HttpOnly cookie）
+        if(data.token){ localStorage.setItem('authToken', data.token); }
         if(remember.checked){ localStorage.setItem('rememberedEmail', email); } else { localStorage.removeItem('rememberedEmail'); }
         showSuccess('登录成功，正在跳转……');
-        // simulate redirect
-        setTimeout(()=>{ window.location.href = '#welcome'; }, 800);
+        setTimeout(()=>{ window.location.href = data.redirect || '/'; }, 700);
       } else {
-        showError('邮箱或密码不正确（示例账号：user@example.com / password123）');
+        showError(data.error || data.message || '登录失败，请检查凭证');
         submitBtn.disabled = false;
       }
-    }, 700);
+    } catch(err){
+      showError('无法连接到服务器，请稍后重试');
+      submitBtn.disabled = false;
+    }
   });
 })();
